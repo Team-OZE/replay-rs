@@ -89,6 +89,8 @@ pub enum ActionType {
 
     MINIMAP_SIGNAL = 0x68,
 
+    SYNC_DATA = 0x78,
+
     UNKNOWN
 }
 
@@ -189,13 +191,17 @@ pub struct ActionData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group_id: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    target_obj_id_1: Option<u32>,
+    pub target_obj_id_1: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    target_obj_id_2: Option<u32>,
+    pub target_obj_id_2: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    item_obj_id_1: Option<u32>,
+    pub item_obj_id_1: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    item_obj_id_2: Option<u32>,
+    pub item_obj_id_2: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<String>
 }
 
 #[derive(Serialize)]
@@ -911,6 +917,17 @@ impl Replay {
                                     },
                                     0x7b => {
                                         cursor_skip_bytes(&mut cursor, 16);
+                                    },
+
+                                    // Sync Data
+                                    0x78 => {
+                                        let prefix = cursor_read_nullterminated_string(&mut cursor);
+                                        let data = cursor_read_nullterminated_string(&mut cursor);
+                                        action.data = Some(ActionData {
+                                            prefix: Some(prefix),
+                                            data: Some(data),
+                                            ..Default::default()
+                                        })
                                     },
 
                                     _ => {

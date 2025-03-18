@@ -199,9 +199,9 @@ pub struct ActionData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub item_obj_id_2: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    prefix: Option<String>,
+    pub prefix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<String>
+    pub data: Option<String>
 }
 
 #[derive(Serialize)]

@@ -923,6 +923,18 @@ impl Replay {
                                     0x78 => {
                                         let prefix = cursor_read_nullterminated_string(&mut cursor);
                                         let data = cursor_read_nullterminated_string(&mut cursor);
+
+                                        // Likely leaves more zeros behind, need to absorb these
+                                        // TODO: Can this be avoided / generalised?
+                                        let mut buf = [0u8];
+                                        loop {
+                                            cursor.read_exact(&mut buf).unwrap();
+                                            if buf[0] != { 0x00 } {
+                                                cursor_skip_bytes(&mut cursor, -1);
+                                                break
+                                            }
+                                        }
+
                                         action.data = Some(ActionData {
                                             prefix: Some(prefix),
                                             data: Some(data),

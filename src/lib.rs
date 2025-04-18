@@ -89,6 +89,7 @@ pub enum ActionType {
 
     MINIMAP_SIGNAL = 0x68,
 
+    SYNC_DATA_NEW = 0x77,
     SYNC_DATA = 0x78,
 
     UNKNOWN
@@ -300,6 +301,20 @@ fn cursor_read_ability_itemid<T>(cursor: &mut Cursor<T>) -> String where T: AsRe
 
     return item_id;
 }
+
+fn cursor_skip_zeros<T>(cursor: &mut Cursor<T>) where T: AsRef<[u8]> {
+    // TODO: Can this be avoided / generalised?
+    let mut buf = [0u8];
+    loop {
+        cursor.read_exact(&mut buf).unwrap();
+        if buf[0] != { 0x00 } {
+            cursor_skip_bytes(cursor, -1);
+            break
+        }
+    }
+}
+
+
 
 fn decode_gamesettings(enc: &Vec<u8>) -> Vec<u8> {
     let mut i = 0;
@@ -913,27 +928,18 @@ impl Replay {
 
                                     // Unknown
                                     0x7a => {
-                                        cursor_skip_bytes(&mut cursor, 20);
+                                        cursor_skip_bytes(&mut cursor, 16);
                                     },
                                     0x7b => {
                                         cursor_skip_bytes(&mut cursor, 16);
                                     },
 
                                     // Sync Data
-                                    0x78 => {
+                                    0x77 | 0x78 => {
                                         let prefix = cursor_read_nullterminated_string(&mut cursor);
                                         let data = cursor_read_nullterminated_string(&mut cursor);
 
-                                        // Likely leaves more zeros behind, need to absorb these
-                                        // TODO: Can this be avoided / generalised?
-                                        let mut buf = [0u8];
-                                        loop {
-                                            cursor.read_exact(&mut buf).unwrap();
-                                            if buf[0] != { 0x00 } {
-                                                cursor_skip_bytes(&mut cursor, -1);
-                                                break
-                                            }
-                                        }
+                                        cursor_skip_zeros(&mut cursor);
 
                                         action.data = Some(ActionData {
                                             prefix: Some(prefix),
@@ -941,6 +947,11 @@ impl Replay {
                                             ..Default::default()
                                         })
                                     },
+
+                                    0x79 => {
+                                        cursor_skip_bytes(&mut cursor, 20);
+                                    }
+
 
                                     _ => {
                                         let cur_pos = cursor.position().clone();
@@ -953,6 +964,7 @@ impl Replay {
                                         break;
                                     }
                                 }
+                                info!("Action: {:#04x} processed at {:?} - {:?}", cur_action_id, cur_position_before_read, cursor.position());
 
                                 if action.action_type != ActionType::UNKNOWN {
                                     actions.push(action);

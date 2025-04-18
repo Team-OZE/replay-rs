@@ -511,7 +511,8 @@ impl Replay {
         info!("Loaded player list: {:?}", player_list);
 
         // Reforged player metadata
-        while next_record_id == 0x39 {
+        // 0x38 since 2.0.2
+        while next_record_id == 0x39 || next_record_id == 0x38 {
             let cur_record_subtype = cursor_read_byte(&mut cursor);
             let cur_record_data_length = cursor_read_dword(&mut cursor);
 

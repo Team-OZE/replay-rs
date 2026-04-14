@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::io::{BufRead, Cursor, Read, Seek, SeekFrom};
 use flate2::{Decompress, FlushDecompress};
-use log::{debug, info, warn};
+use log::{debug, info, max_level as max_log_level, warn};
+use log::Level::Debug;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use serde::{Serialize};
@@ -664,15 +665,16 @@ impl Replay {
 
                                 let bytes_remaining_in_tick_payload = len_following - cur_read_bytes;
 
-                                debug!("Attempting to read action {:#04x}, {} bytes left in tick payload", cur_action_id, bytes_remaining_in_tick_payload);
-                                let mut buf: Vec<u8> = Vec::new();
-                                buf.resize(bytes_remaining_in_tick_payload as usize, 0);
-                                cursor.read_exact(&mut buf).unwrap();
-                                cursor_skip_bytes(&mut cursor, -(bytes_remaining_in_tick_payload as i64));
+                                if max_log_level() >= Debug {
+                                    debug!("Attempting to read action {:#04x}, {} bytes left in tick payload", cur_action_id, bytes_remaining_in_tick_payload);
+                                    let mut buf: Vec<u8> = Vec::new();
+                                    buf.resize(bytes_remaining_in_tick_payload as usize, 0);
+                                    cursor.read_exact(&mut buf).unwrap();
+                                    cursor_skip_bytes(&mut cursor, -(bytes_remaining_in_tick_payload as i64));
 
-                                debug!("Following bytes: {}", buf.iter().map(|x| format!("{:02x}", x)).collect::<Vec<String>>().join(" "));
-                                debug!("Following bytes as ASCII: {}", buf.iter().map(|x| char::from(*x).to_string()).collect::<Vec<String>>().join(""));
-
+                                    debug!("Following bytes: {}", buf.iter().map(|x| format!("{:02x}", x)).collect::<Vec<String>>().join(" "));
+                                    debug!("Following bytes as ASCII: {}", buf.iter().map(|x| char::from(*x).to_string()).collect::<Vec<String>>().join(""));
+                                }
                                 match cur_action_id {
                                     0x01 => {},
                                     0x02 => {},

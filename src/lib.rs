@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{BufRead, Cursor, Read, Seek, SeekFrom};
 use flate2::{Decompress, FlushDecompress};
-use log::{info, warn};
+use log::{debug, info, warn};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use serde::{Serialize};
@@ -289,7 +289,7 @@ fn cursor_skip_bytes<T>(cursor: &mut Cursor<T>, n: i64) where T: AsRef<[u8]> {
 fn cursor_read_ability_itemid<T>(cursor: &mut Cursor<T>) -> String where T: AsRef<[u8]> {
     let item_id: String;
     let item_id_end = cursor_read_word(cursor);
-    cursor_skip_bytes(cursor, -4);
+    cursor_skip_bytes(cursor, -2);
 
     if item_id_end == 0x000D {
         item_id = cursor_read_string(cursor, 2);
@@ -625,6 +625,7 @@ impl Replay {
                     cursor_skip_bytes(&mut cursor, 4);
                 },
                 0x1E | 0x1F => {
+                    debug!("New tick");
                     let mut len_following = cursor_read_word(&mut cursor);
                     let increment = cursor_read_word(&mut cursor);
                     // info!("Time increment: {:?}", increment);
@@ -661,6 +662,17 @@ impl Replay {
                                     data: None,
                                 };
 
+                                let bytes_remaining_in_tick_payload = len_following - cur_read_bytes;
+
+                                debug!("Attempting to read action {:#04x}, {} bytes left in tick payload", cur_action_id, bytes_remaining_in_tick_payload);
+                                let mut buf: Vec<u8> = Vec::new();
+                                buf.resize(bytes_remaining_in_tick_payload as usize, 0);
+                                cursor.read_exact(&mut buf).unwrap();
+                                cursor_skip_bytes(&mut cursor, -(bytes_remaining_in_tick_payload as i64));
+
+                                debug!("Following bytes: {}", buf.iter().map(|x| format!("{:02x}", x)).collect::<Vec<String>>().join(" "));
+                                debug!("Following bytes as ASCII: {}", buf.iter().map(|x| char::from(*x).to_string()).collect::<Vec<String>>().join(""));
+
                                 match cur_action_id {
                                     0x01 => {},
                                     0x02 => {},
@@ -682,7 +694,6 @@ impl Replay {
                                     0x10 => {
                                         let flags = cursor_read_word(&mut cursor);
 
-                                        cursor_skip_bytes(&mut cursor, 2);
                                         let item_id = cursor_read_ability_itemid(&mut cursor);
 
                                         let unk_a = cursor_read_dword(&mut cursor);
@@ -699,7 +710,6 @@ impl Replay {
                                     0x11 => {
                                         let flags = cursor_read_word(&mut cursor);
 
-                                        cursor_skip_bytes(&mut cursor, 2);
                                         let item_id = cursor_read_ability_itemid(&mut cursor);
 
                                         let unk_a = cursor_read_dword(&mut cursor);
@@ -723,7 +733,6 @@ impl Replay {
                                     0x12 => {
                                         let flags = cursor_read_word(&mut cursor);
 
-                                        cursor_skip_bytes(&mut cursor, 2);
                                         let item_id = cursor_read_ability_itemid(&mut cursor);
 
                                         let unk_a = cursor_read_dword(&mut cursor);
@@ -909,6 +918,7 @@ impl Replay {
                                     0x68 => {
                                         let x = cursor_read_dword_float(&mut cursor);
                                         let y = cursor_read_dword_float(&mut cursor);
+                                        let dur = cursor_read_dword_float(&mut cursor);
                                         action.data = Option::from(ActionData {
                                             location: Option::from(MapLocation {
                                                 x,
@@ -934,13 +944,12 @@ impl Replay {
                                     0x7b => {
                                         cursor_skip_bytes(&mut cursor, 16);
                                     },
-
                                     // Sync Data
-                                    0x77 | 0x78 => {
+                                    0x77 => {
                                         let prefix = cursor_read_nullterminated_string(&mut cursor);
                                         let data = cursor_read_nullterminated_string(&mut cursor);
-
-                                        cursor_skip_zeros(&mut cursor);
+                                        info!("[SyncData] Prefix: \"{}\", Data: \"{}\"", prefix, data);
+                                        cursor_skip_bytes(&mut cursor, 4);
 
                                         action.data = Some(ActionData {
                                             prefix: Some(prefix),
@@ -949,9 +958,18 @@ impl Replay {
                                         })
                                     },
 
+                                    0x78 => {
+                                        cursor_skip_bytes(&mut cursor, 16);
+                                        cursor_read_nullterminated_string(&mut cursor);
+                                    },
+
                                     0x79 => {
                                         cursor_skip_bytes(&mut cursor, 20);
-                                    }
+                                    },
+
+                                    0x7a => {
+                                        cursor_skip_bytes(&mut cursor, 16);
+                                    },
 
 
                                     _ => {
@@ -965,7 +983,7 @@ impl Replay {
                                         break;
                                     }
                                 }
-                                info!("Action: {:#04x} processed at {:?} - {:?}", cur_action_id, cur_position_before_read, cursor.position());
+                                info!("Action: {:#04x} processed at {:?} - {:?} {:?}", cur_action_id, cur_position_before_read, cursor.position(), len_following);
 
                                 if action.action_type != ActionType::UNKNOWN {
                                     actions.push(action);
